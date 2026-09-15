@@ -1,0 +1,13 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Local Python OCR environment
+.paddle-env/

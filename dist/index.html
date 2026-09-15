@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#102943" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/app-icon.svg" />
+    <title>NiyamLens+ — Label scan</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <div class="brand"><span class="lens"></span>NiyamLens+</div>
+        <div style="display: flex; gap: 10px; align-items: center">
+          <button
+            id="install"
+            type="button"
+            style="
+              display: none;
+              border: 1px solid #55708d;
+              border-radius: 7px;
+              background: transparent;
+              color: #fff;
+              padding: 5px 8px;
+              font-size: 10px;
+              font-weight: 800;
+            "
+          >
+            Install</button
+          ><span class="online" id="network">LOCAL OCR</span>
+        </div>
+      </header>
+      <main class="shell">
+        <section class="intro">
+          <div>
+            <p class="eyebrow">Mobile food-label scanner</p>
+            <h1>One scan. Clearer choices.</h1>
+            <p>
+              Capture a packaged-food label, review evidence, and explain
+              verified facts in plain language.
+            </p>
+          </div>
+          <div class="steps" id="steps">
+            <span class="live">1</span> Capture <i></i><span>2</span> Review
+            <i></i><span>3</span> Act
+          </div>
+        </section>
+        <section class="screen active" id="capture">
+          <div class="grid">
+            <article class="card">
+              <div class="camera">
+                <div class="frame">
+                  <div>
+                    <div class="scanicon">▣</div>
+                    <b>Frame the label</b>
+                    <p>
+                      Use the rear camera. Keep text flat, bright and without
+                      glare.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="guidance">
+                <b>☀</b
+                ><span
+                  ><strong>Capture tip:</strong> Photograph nutrition,
+                  ingredients, MRP and date panels. You can add another side
+                  next.</span
+                >
+              </div>
+              <div class="buttons">
+                <button class="button secondary" id="gallery">
+                  Choose photo</button
+                ><button class="button" id="camera">Open camera</button>
+              </div>
+            </article>
+            <article class="card pad">
+              <div class="title">Before you scan</div>
+              <p class="sub">
+                PaddleX reads labels on this device. Capture and scanning work
+                offline; internet is used only for retailer checks. Photos are
+                sent only to the local OCR service.
+              </p>
+              <div class="hint" style="margin: 15px -18px -18px">
+                <b>We read:</b> MRP, FSSAI licence, nutrition, allergens, dates,
+                ingredients and manufacturer details.
+              </div>
+            </article>
+          </div>
+        </section>
+        <section class="screen" id="confirm">
+          <div class="grid">
+            <article class="card">
+              <div class="imagebar">
+                <span id="imageCount">1 label photo</span
+                ><span class="chip">READY TO SCAN</span>
+              </div>
+              <div class="previewbox">
+                <img
+                  class="preview"
+                  id="confirmImage"
+                  alt="Package label selected for scanning"
+                />
+              </div>
+              <div class="buttons">
+                <button class="button secondary" id="retake">Retake</button
+                ><button class="button secondary" id="addSide">
+                  + Add side
+                </button>
+              </div>
+            </article>
+            <article class="card pad">
+              <div class="title">Confirm label quality</div>
+              <p class="sub">
+                Low-confidence fields are sent to human review, never passed
+                automatically.
+              </p>
+            </article>
+          </div>
+          <div class="bottom">
+            <div class="bottomin">
+              <button class="button wide" id="readLabel">Read label</button>
+            </div>
+          </div>
+        </section>
+        <section class="screen" id="scanning">
+          <article class="card scanstatus">
+            <div class="spinner"></div>
+            <h2 id="scanTitle">Reading your label</h2>
+            <p id="scanCopy">PaddleX is reading this label on your device.</p>
+            <div class="progress"><i id="bar"></i></div>
+            <p id="scanProgress">Preparing image</p>
+            <button class="button secondary hidden" id="scanRecover">
+              Try again
+            </button>
+          </article>
+        </section>
+        <section class="screen" id="review">
+          <div class="grid">
+            <div>
+              <div class="modebar">
+                <button class="mode active inspector" data-mode="inspector">
+                  Inspector</button
+                ><button class="mode saathi" data-mode="saathi">Saathi</button>
+              </div>
+              <article class="card view show" id="inspector">
+                <div class="pad">
+                  <div class="title">Inspector review</div>
+                  <p class="sub">
+                    Tap a field to see its source or correct it.
+                  </p>
+                </div>
+                <div class="summary" id="summary"></div>
+                <div id="results"></div>
+                <div class="hint">
+                  <b>Evidence-first:</b> Every extracted value is linked to its
+                  OCR source when available.
+                </div>
+              </article>
+              <article class="card view" id="saathi">
+                <div class="saathihero">
+                  <h2 id="saathiTitle"></h2>
+                  <p id="saathiIntro"></p>
+                </div>
+                <div class="meaninggrid" id="meaning"></div>
+                <div class="lang">
+                  <button class="on" data-lang="en">English</button
+                  ><button data-lang="hi">हिंदी</button>
+                </div>
+                <div style="padding: 0 12px 14px">
+                  <button class="button teal wide" id="listen">
+                    ▶ Listen to explanation
+                  </button>
+                </div>
+              </article>
+            </div>
+            <article class="card">
+              <div class="imagebar">
+                <span id="reviewCount">Source image</span
+                ><span class="chip" id="ocrChip">OCR COMPLETE</span>
+              </div>
+              <div class="previewbox">
+                <img
+                  class="preview"
+                  id="reviewImage"
+                  alt="Scanned package label evidence"
+                />
+                <div class="evidence" id="evidence"></div>
+                <span class="evidence-label" id="evidenceLabel"></span>
+              </div>
+              <div class="pad">
+                <div class="title">Evidence source</div>
+                <p class="sub" id="caption">
+                  Tap an Inspector field to highlight its source text.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+      <div class="bottom hidden" id="actions">
+        <div class="bottomin">
+          <button class="button secondary" id="newScan">New scan</button
+          ><button class="button" id="listing">Check listing MRP</button
+          ><button class="button teal" id="report">Evidence report</button>
+        </div>
+      </div>
+    </div>
+    <input
+      class="file"
+      id="input"
+      type="file"
+      accept="image/*"
+      capture="environment"
+      multiple
+    />
+    <div class="sheet" id="sheet">
+      <div class="sheetcard">
+        <div class="handle"></div>
+        <h2 id="sheetTitle">Field evidence</h2>
+        <p class="sub" id="sheetDetail"></p>
+        <label class="editlabel" for="edit">Verified value</label
+        ><input class="edit" id="edit" />
+        <div class="sheetactions">
+          <button class="button secondary" id="closeSheet">Cancel</button
+          ><button class="button" id="save">Save review</button>
+        </div>
+      </div>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <script type="module" src="app.js?v=local-ocr-5"></script>
+  </body>
+</html>

@@ -7,6 +7,10 @@
       content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
     <meta name="theme-color" content="#102943" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; connect-src 'self'"
+    />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="manifest.webmanifest" />
@@ -44,7 +48,11 @@
             <h1>One scan. Clearer choices.</h1>
             <p>
               Capture a packaged-food label, review evidence, and explain
-              verified facts in plain language.
+              detected text in plain language.
+            </p>
+            <p class="prototype-note">
+              OCR-assisted prototype only. NiyamLens+ does not certify Legal
+              Metrology compliance.
             </p>
           </div>
           <div class="steps" id="steps">
@@ -84,9 +92,10 @@
             <article class="card pad">
               <div class="title">Before you scan</div>
               <p class="sub">
-                PaddleX reads labels on this device. Capture and scanning work
-                offline; internet is used only for retailer checks. Photos are
-                sent only to the local OCR service.
+                PaddleX reads labels on this local server. OCR can work without
+                internet; Bhashini Hindi and Azure English narration use
+                internet services. Photos are sent only to the configured OCR
+                service.
               </p>
               <div class="hint" style="margin: 15px -18px -18px">
                 <b>We read:</b> MRP, FSSAI licence, nutrition, allergens, dates,
@@ -119,8 +128,8 @@
             <article class="card pad">
               <div class="title">Confirm label quality</div>
               <p class="sub">
-                Low-confidence fields are sent to human review, never passed
-                automatically.
+                Low-confidence fields are sent to human review. Detection never
+                means legal compliance.
               </p>
             </article>
           </div>
@@ -135,7 +144,7 @@
             <div class="spinner"></div>
             <h2 id="scanTitle">Reading your label</h2>
             <p id="scanCopy">PaddleX is reading this label on your device.</p>
-            <div class="progress"><i id="bar"></i></div>
+            <div class="progress" role="progressbar" aria-label="Scan progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="8"><i id="bar"></i></div>
             <p id="scanProgress">Preparing image</p>
             <button class="button secondary hidden" id="scanRecover">
               Try again
@@ -146,38 +155,44 @@
           <div class="grid">
             <div>
               <div class="modebar">
-                <button class="mode active inspector" data-mode="inspector">
-                  Inspector</button
-                ><button class="mode saathi" data-mode="saathi">Saathi</button>
+                <button class="mode active inspector" data-mode="inspector" aria-pressed="true">
+                  Label facts</button
+                ><button class="mode saathi" data-mode="saathi" aria-pressed="false">Health explanation</button>
               </div>
               <article class="card view show" id="inspector">
                 <div class="pad">
-                  <div class="title">Inspector review</div>
+                  <div class="title">Detected label facts</div>
                   <p class="sub">
-                    Tap a field to see its source or correct it.
+                    Detected facts appear first. Tap one to inspect or correct it.
                   </p>
                 </div>
                 <div class="summary" id="summary"></div>
                 <div id="results"></div>
                 <div class="hint">
-                  <b>Evidence-first:</b> Every extracted value is linked to its
-                  OCR source when available.
+                  <b>Evidence-first:</b> Detected values are linked to OCR source
+                  regions when available. A reviewer must decide compliance.
                 </div>
               </article>
               <article class="card view" id="saathi">
                 <div class="saathihero">
+                  <span class="concern-badge" id="concernBadge"></span>
                   <h2 id="saathiTitle"></h2>
                   <p id="saathiIntro"></p>
                 </div>
                 <div class="meaninggrid" id="meaning"></div>
+                <p class="saathi-disclaimer" id="saathiDisclaimer"></p>
                 <div class="lang">
-                  <button class="on" data-lang="en">English</button
-                  ><button data-lang="hi">हिंदी</button>
+                  <button class="on" data-lang="en" aria-pressed="true">English</button
+                  ><button data-lang="hi" aria-pressed="false">हिंदी</button>
                 </div>
-                <div style="padding: 0 12px 14px">
+                <div class="voice-controls">
                   <button class="button teal wide" id="listen">
-                    ▶ Listen to explanation
+                    ▶ Listen to health guidance
                   </button>
+                  <button class="button secondary wide hidden" id="pause">
+                    ⏸ Pause
+                  </button>
+                  <p class="voice-status" id="voiceStatus" aria-live="polite"></p>
                 </div>
               </article>
             </div>
@@ -207,9 +222,7 @@
       </main>
       <div class="bottom hidden" id="actions">
         <div class="bottomin">
-          <button class="button secondary" id="newScan">New scan</button
-          ><button class="button" id="listing">Check listing MRP</button
-          ><button class="button teal" id="report">Evidence report</button>
+          <button class="button secondary wide" id="newScan">New scan</button>
         </div>
       </div>
     </div>
@@ -221,13 +234,17 @@
       capture="environment"
       multiple
     />
-    <div class="sheet" id="sheet">
-      <div class="sheetcard">
+    <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheetcard" tabindex="-1">
         <div class="handle"></div>
         <h2 id="sheetTitle">Field evidence</h2>
         <p class="sub" id="sheetDetail"></p>
-        <label class="editlabel" for="edit">Verified value</label
+        <label class="editlabel" for="edit">Reviewed value</label
         ><input class="edit" id="edit" />
+        <label class="editlabel" for="reviewer">Reviewer</label>
+        <input class="edit" id="reviewer" autocomplete="name" />
+        <label class="editlabel" for="reviewReason">Reason for correction</label>
+        <input class="edit" id="reviewReason" placeholder="Compared with the original package" />
         <div class="sheetactions">
           <button class="button secondary" id="closeSheet">Cancel</button
           ><button class="button" id="save">Save review</button>
@@ -235,6 +252,6 @@
       </div>
     </div>
     <div class="toast" id="toast" role="status"></div>
-    <script type="module" src="app.js?v=local-ocr-5"></script>
+    <script type="module" src="app.js?v=label-format-2"></script>
   </body>
 </html>

@@ -1,4 +1,6 @@
 import { DEFAULT_LOCAL_OCR_URL } from "../lib/local-ocr.js";
+import { validateJpegBase64 } from "../lib/image-quality.js";
+import { protectApi } from "../lib/request-security.js";
 
 const MAX_IMAGES = 4;
 // Keep Base64 JSON requests under Vercel Functions' 4.5 MB request-body limit.
@@ -122,8 +124,8 @@ function invalid(response, status, code, error) {
   return response.status(status).json({ code, error });
 }
 
-function serviceUrl() {
-  const value = process.env.LOCAL_PADDLEOCR_URL || DEFAULT_LOCAL_OCR_URL;
+function serviceUrl(environment) {
+  const value = environment.LOCAL_PADDLEOCR_URL || DEFAULT_LOCAL_OCR_URL;
   try {
     const url = new URL(value);
     if (!/^https?:$/.test(url.protocol))
@@ -138,18 +140,18 @@ function serviceError(code, message) {
   return Object.assign(new Error(message), { code });
 }
 
-async function scanPanel(endpoint, content) {
+async function scanPanel(endpoint, content, quality, fetchImplementation) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120_000);
   try {
-    const result = await fetch(endpoint, {
+    const result = await fetchImplementation(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         file: content,
         fileType: 1,
         useDocOrientationClassify: true,
-        useDocUnwarping: false,
+        useDocUnwarping: true,
         useTextlineOrientation: true,
         textDetLimitSideLen: 2400,
         textDetLimitType: "max",
@@ -173,7 +175,7 @@ async function scanPanel(endpoint, content) {
         "Local PaddleOCR returned an unexpected response",
       );
     }
-    return normalized;
+    return { ...normalized, quality };
   } catch (error) {
     if (error?.name === "AbortError") {
       throw serviceError("LOCAL_OCR_TIMEOUT", "Local PaddleOCR took too long");
@@ -188,8 +190,14 @@ async function scanPanel(endpoint, content) {
   }
 }
 
-export default async function handler(request, response) {
+export function createOcrHandler({
+  fetchImplementation = globalThis.fetch,
+  environment = process.env,
+} = {}) {
+  return async function handler(request, response) {
   response.setHeader("Cache-Control", "no-store");
+
+  if (!protectApi(request, response, { name: "ocr", limit: 20, environment })) return;
 
   if (request.method !== "POST") {
     response.setHeader("Allow", "POST");
@@ -207,12 +215,12 @@ export default async function handler(request, response) {
   }
 
   let totalBytes = 0;
+  const preparedImages = [];
   for (const image of images) {
     if (
       !image ||
       image.mimeType !== "image/jpeg" ||
-      typeof image.content !== "string" ||
-      !/^[A-Za-z0-9+/]+={0,2}$/.test(image.content)
+      typeof image.content !== "string"
     ) {
       return invalid(
         response,
@@ -222,7 +230,16 @@ export default async function handler(request, response) {
       );
     }
 
-    const byteLength = Buffer.byteLength(image.content, "base64");
+    const validated = validateJpegBase64(image.content);
+    if (!validated) {
+      return invalid(
+        response,
+        400,
+        "INVALID_IMAGE",
+        "Image data is not a valid JPEG file",
+      );
+    }
+    const byteLength = validated.buffer.length;
     if (!byteLength || byteLength > MAX_IMAGE_BYTES) {
       return invalid(
         response,
@@ -232,6 +249,7 @@ export default async function handler(request, response) {
       );
     }
     totalBytes += byteLength;
+    preparedImages.push({ content: image.content, quality: validated.quality });
   }
 
   if (totalBytes > MAX_TOTAL_BYTES) {
@@ -243,7 +261,7 @@ export default async function handler(request, response) {
     );
   }
 
-  const endpoint = serviceUrl();
+  const endpoint = serviceUrl(environment);
   if (!endpoint) {
     return invalid(
       response,
@@ -255,8 +273,10 @@ export default async function handler(request, response) {
 
   try {
     const results = [];
-    for (const image of images) {
-      results.push(await scanPanel(endpoint, image.content));
+    for (const image of preparedImages) {
+      results.push(
+        await scanPanel(endpoint, image.content, image.quality, fetchImplementation),
+      );
     }
 
     if (!results.some((result) => result.text.trim())) {
@@ -267,6 +287,15 @@ export default async function handler(request, response) {
     console.error("Local PaddleOCR request failed", { code: error?.code });
     const code = error?.code || "LOCAL_OCR_UNAVAILABLE";
     const status = code === "LOCAL_OCR_TIMEOUT" ? 504 : 503;
-    return invalid(response, status, code, error.message);
+    const safeMessage =
+      code === "LOCAL_OCR_TIMEOUT"
+        ? "Local PaddleOCR took too long"
+        : code === "LOCAL_OCR_BAD_RESPONSE"
+          ? "Local PaddleOCR returned an unexpected response"
+          : "Local PaddleOCR could not process this request";
+    return invalid(response, status, code, safeMessage);
   }
+  };
 }
+
+export default createOcrHandler();

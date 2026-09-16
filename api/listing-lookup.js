@@ -1,18 +1,18 @@
-const priceFrom = (value = "") => {
-  const match = String(value).match(
-    /(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)/i,
-  );
-  return match ? match[1].replace(/,/g, "") : "";
-};
+import { protectApi } from "../lib/request-security.js";
 
-export default async function handler(request, response) {
+export function createListingLookupHandler({
+  fetchImplementation = globalThis.fetch,
+  environment = process.env,
+} = {}) {
+  return async function handler(request, response) {
+  if (!protectApi(request, response, { name: "listing", limit: 10, environment })) return;
   if (request.method !== "POST") {
     response.setHeader("Allow", "POST");
     return response.status(405).json({ error: "Method not allowed" });
   }
   response.setHeader("Cache-Control", "no-store");
 
-  if (!process.env.TAVILY_API_KEY) {
+  if (!environment.TAVILY_API_KEY) {
     return response
       .status(503)
       .json({ error: "Retailer lookup is not configured" });
@@ -29,10 +29,10 @@ export default async function handler(request, response) {
   }
 
   try {
-    const upstream = await fetch("https://api.tavily.com/search", {
+    const upstream = await fetchImplementation("https://api.tavily.com/search", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.TAVILY_API_KEY}`,
+        Authorization: `Bearer ${environment.TAVILY_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -47,19 +47,17 @@ export default async function handler(request, response) {
 
     if (!upstream.ok) throw new Error(`Tavily returned ${upstream.status}`);
     const payload = await upstream.json();
-    const result =
-      (payload.results || []).find((item) =>
-        priceFrom(`${item.title || ""} ${item.content || ""}`),
-      ) || payload.results?.[0];
-    const price = result
-      ? priceFrom(`${result.title || ""} ${result.content || ""}`)
-      : "";
+    const references = (payload.results || []).slice(0, 5).map((item) => ({
+      title: String(item.title || "").slice(0, 240),
+      url: String(item.url || ""),
+      excerpt: String(item.content || "").slice(0, 500),
+    }));
 
     return response.status(200).json({
-      status: price ? "found" : "review",
-      title: result?.title || "",
-      price,
-      source: result?.url || "Tavily Search",
+      status: references.length ? "references_found" : "review",
+      references,
+      disclaimer:
+        "Search results are unverified reference leads, not evidence of a retailer price or Legal Metrology violation.",
       checkedAt: new Date().toISOString(),
     });
   } catch (error) {
@@ -68,4 +66,7 @@ export default async function handler(request, response) {
       .status(502)
       .json({ error: "Retailer lookup failed. Please review manually." });
   }
+  };
 }
+
+export default createListingLookupHandler();

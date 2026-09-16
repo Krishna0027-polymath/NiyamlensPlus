@@ -4,7 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import listingLookup from "./api/listing-lookup.js";
 import ocr from "./api/ocr.js";
+import tts from "./api/tts.js";
+import cases from "./api/cases.js";
 import { loadLocalEnvironment } from "./lib/local-environment.js";
+import { applySecurityHeaders, isAuthorized } from "./lib/request-security.js";
 
 const rootDirectory = path.dirname(fileURLToPath(import.meta.url));
 const staticDirectory = path.join(rootDirectory, "dist");
@@ -12,6 +15,8 @@ const MAX_BODY_BYTES = 10_000_000;
 const routes = new Map([
   ["/api/ocr", ocr],
   ["/api/listing-lookup", listingLookup],
+  ["/api/tts", tts],
+  ["/api/cases", cases],
 ]);
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
@@ -40,6 +45,10 @@ function apiResponse(response) {
       response.end(JSON.stringify(value));
       return this;
     },
+    send(value) {
+      response.end(value);
+      return this;
+    },
   };
 }
 
@@ -48,7 +57,7 @@ function allowLocalLiveServer(request, response) {
   if (/^http:\/\/(127\.0\.0\.1|localhost):5500$/.test(origin)) {
     response.setHeader("Access-Control-Allow-Origin", origin);
     response.setHeader("Vary", "Origin");
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   }
 }
@@ -136,23 +145,29 @@ function serveStatic(request, response, pathname) {
     "Content-Type",
     contentTypes[path.extname(filePath)] || "application/octet-stream",
   );
-  response.setHeader("X-Content-Type-Options", "nosniff");
-  response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   createReadStream(filePath).pipe(response);
 }
 
 loadLocalEnvironment(rootDirectory);
 
 const server = createServer((request, response) => {
+  applySecurityHeaders(response);
   const pathname = new URL(request.url, "http://localhost").pathname;
   const handler = routes.get(pathname);
+  if (handler) allowLocalLiveServer(request, response);
+  if (handler && request.method === "OPTIONS") {
+    response.statusCode = 204;
+    response.end();
+    return;
+  }
+  if (!isAuthorized(request)) {
+    response.statusCode = 401;
+    response.setHeader("WWW-Authenticate", 'Basic realm="NiyamLens+", charset="UTF-8"');
+    response.setHeader("Content-Type", "application/json; charset=utf-8");
+    response.end(JSON.stringify({ code: "AUTH_REQUIRED", error: "Authentication required" }));
+    return;
+  }
   if (handler) {
-    allowLocalLiveServer(request, response);
-    if (request.method === "OPTIONS") {
-      response.statusCode = 204;
-      response.end();
-      return;
-    }
     return serveApi(request, response, handler);
   }
   return serveStatic(request, response, pathname);

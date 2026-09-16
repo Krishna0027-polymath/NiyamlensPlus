@@ -9,5 +9,8 @@
 # Dependencies
 node_modules/
 
+# Local case repository
+.niyamlens-data/
+
 # Local Python OCR environment
 .paddle-env/

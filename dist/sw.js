@@ -1,10 +1,11 @@
-const CACHE = "niyamlens-shell-v5",
+const CACHE = "niyamlens-shell-v16",
   SHELL = [
     "./",
     "./index.html",
     "./styles.css",
-    "./app.js?v=local-ocr-5",
-    "./label-parser.js?v=local-ocr-5",
+    "./app.js?v=label-format-2",
+    "./label-parser.js?v=label-format-1",
+    "./health-assessment.js?v=label-format-1",
     "./manifest.webmanifest",
     "./icons/app-icon.svg",
   ];
